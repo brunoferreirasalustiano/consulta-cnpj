@@ -1,0 +1,1088 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <base target="_self">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Consulta CNPJ — Data Explorer</title>
+    <meta name="description" content="Consulta técnica e exaustiva de dados de CNPJ via BrasilAPI.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* ===== CSS CUSTOM PROPERTIES (TEMA) ===== */
+        :root {
+            --bg-base:      #0b0f1a;
+            --bg-card:      #111827;
+            --bg-hover:     #1a2236;
+            --border:       rgba(99, 130, 255, 0.12);
+            --border-glow:  rgba(99, 130, 255, 0.35);
+            --primary:      #5b8dee;
+            --primary-dark: #3b6de0;
+            --accent:       #34d399;
+            --danger:       #f87171;
+            --text-hi:      #f0f4ff;
+            --text-mid:     #8b9cc4;
+            --text-lo:      #4a587a;
+            --mono:         'JetBrains Mono', monospace;
+            --sans:         'DM Sans', sans-serif;
+            --radius:       12px;
+            --radius-sm:    8px;
+        }
+
+        /* ===== RESET & BASE ===== */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html { scroll-behavior: smooth; }
+        body {
+            font-family: var(--sans);
+            background: var(--bg-base);
+            color: var(--text-hi);
+            min-height: 100vh;
+            /* textura sutil de pontos */
+            background-image: radial-gradient(circle at 1px 1px, rgba(99,130,255,0.07) 1px, transparent 0);
+            background-size: 28px 28px;
+        }
+
+        /* ===== UTILITÁRIOS ===== */
+        .hidden { display: none !important; }
+        .mono { font-family: var(--mono); }
+
+        /* ===== HEADER ===== */
+        header {
+            border-bottom: 1px solid var(--border);
+            background: rgba(11, 15, 26, 0.85);
+            backdrop-filter: blur(12px);
+            position: sticky;
+            top: 0;
+            z-index: 50;
+        }
+        .header-inner {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 18px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text-hi);
+        }
+        .logo-icon {
+            width: 34px; height: 34px;
+            background: linear-gradient(135deg, var(--primary), #8b5cf6);
+            border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 14px;
+        }
+        .badge-api {
+            font-size: 10px;
+            font-family: var(--mono);
+            background: rgba(91,141,238,0.15);
+            color: var(--primary);
+            border: 1px solid rgba(91,141,238,0.3);
+            padding: 2px 8px;
+            border-radius: 100px;
+            letter-spacing: 0.05em;
+        }
+
+        /* ===== MAIN LAYOUT ===== */
+        main {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 24px 80px;
+        }
+
+        /* ===== SEARCH BOX ===== */
+        .search-wrapper {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 28px;
+            margin-bottom: 32px;
+        }
+        .search-label {
+            font-size: 11px;
+            font-family: var(--mono);
+            color: var(--text-lo);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 10px;
+        }
+        .search-row {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .search-row input {
+            flex: 1;
+            min-width: 240px;
+            background: var(--bg-base);
+            border: 1px solid var(--border);
+            color: var(--text-hi);
+            font-family: var(--mono);
+            font-size: 18px;
+            padding: 14px 18px;
+            border-radius: var(--radius-sm);
+            outline: none;
+            letter-spacing: 0.05em;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .search-row input::placeholder { color: var(--text-lo); font-size: 14px; }
+        .search-row input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(91,141,238,0.15);
+        }
+        .btn-search {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: #fff;
+            font-family: var(--sans);
+            font-weight: 600;
+            font-size: 14px;
+            padding: 14px 28px;
+            border: none;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: opacity 0.2s, transform 0.1s;
+            white-space: nowrap;
+        }
+        .btn-search:hover { opacity: 0.88; transform: translateY(-1px); }
+        .btn-search:active { transform: translateY(0); }
+
+        /* ===== LOADING ===== */
+        #loading {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 64px 0;
+            gap: 16px;
+            color: var(--text-mid);
+            font-size: 14px;
+        }
+        .spinner {
+            width: 36px; height: 36px;
+            border: 3px solid var(--border);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ===== ERROR ===== */
+        .error-box {
+            background: rgba(248,113,113,0.08);
+            border: 1px solid rgba(248,113,113,0.25);
+            border-radius: var(--radius-sm);
+            padding: 16px 20px;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            color: var(--danger);
+            font-size: 14px;
+            margin-bottom: 24px;
+            animation: fadeUp 0.3s ease;
+        }
+        .error-box i { margin-top: 2px; font-size: 16px; }
+
+        /* ===== FADE ANIMATION ===== */
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(12px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        .fade-up { animation: fadeUp 0.4s ease; }
+
+        /* ===== EMPRESA HEADER CARD ===== */
+        .company-header {
+            background: linear-gradient(135deg, #111d38 0%, #0f1a30 100%);
+            border: 1px solid var(--border-glow);
+            border-radius: var(--radius);
+            padding: 28px 32px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 24px;
+            flex-wrap: wrap;
+            margin-bottom: 4px;
+            position: relative;
+            overflow: hidden;
+        }
+        /* linha colorida de status no topo */
+        .company-header::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 3px;
+            background: var(--status-color, var(--primary));
+        }
+        .company-name {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--text-hi);
+            line-height: 1.3;
+        }
+        .company-fantasy {
+            font-size: 14px;
+            color: var(--text-mid);
+            margin-top: 4px;
+        }
+        .status-badge {
+            font-size: 11px;
+            font-family: var(--mono);
+            font-weight: 600;
+            padding: 4px 10px;
+            border-radius: 100px;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+        .status-ativa  { background: rgba(52,211,153,0.15); color: var(--accent); border: 1px solid rgba(52,211,153,0.3); }
+        .status-outra  { background: rgba(248,113,113,0.15); color: var(--danger); border: 1px solid rgba(248,113,113,0.3); }
+        .cnpj-display {
+            text-align: right;
+        }
+        .cnpj-display .label { font-size: 10px; font-family: var(--mono); color: var(--text-lo); text-transform: uppercase; letter-spacing: 0.1em; }
+        .cnpj-display .value { font-family: var(--mono); font-size: 22px; font-weight: 600; color: var(--primary); }
+
+        /* ===== TABS ===== */
+        .tabs-bar {
+            display: flex;
+            gap: 4px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 4px;
+            margin: 20px 0 20px;
+            overflow-x: auto;
+        }
+        .tab-btn {
+            flex-shrink: 0;
+            background: transparent;
+            border: none;
+            color: var(--text-mid);
+            font-family: var(--sans);
+            font-size: 13px;
+            font-weight: 500;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            transition: background 0.15s, color 0.15s;
+            white-space: nowrap;
+        }
+        .tab-btn:hover { background: var(--bg-hover); color: var(--text-hi); }
+        .tab-btn.active { background: var(--primary); color: #fff; font-weight: 600; }
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; animation: fadeUp 0.3s ease; }
+
+        /* ===== CARD ===== */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 24px;
+        }
+        .card-title {
+            font-size: 11px;
+            font-family: var(--mono);
+            font-weight: 600;
+            color: var(--text-lo);
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .card-title i { color: var(--primary); font-size: 13px; }
+
+        /* ===== GRID DE CAMPOS ===== */
+        .field-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 16px 24px;
+        }
+        .field-grid.cols-2 { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+        .field-item {}
+        .field-item.full { grid-column: 1 / -1; }
+        .field-lbl {
+            font-size: 10px;
+            font-family: var(--mono);
+            color: var(--text-lo);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 4px;
+        }
+        .field-val {
+            font-size: 13px;
+            color: var(--text-hi);
+            font-weight: 500;
+            word-break: break-word;
+        }
+        .field-val.na { color: var(--text-lo); font-style: italic; font-size: 12px; }
+
+        /* ===== PILL ===== */
+        .pill {
+            display: inline-block;
+            font-size: 10px;
+            font-family: var(--mono);
+            padding: 3px 10px;
+            border-radius: 100px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .pill-on  { background: rgba(52,211,153,0.12); color: var(--accent); border: 1px solid rgba(52,211,153,0.25); }
+        .pill-off { background: rgba(75,85,115,0.2);  color: var(--text-lo);  border: 1px solid rgba(75,85,115,0.3); }
+
+        /* ===== QSA CARD ===== */
+        .socio-card {
+            background: var(--bg-base);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 16px;
+            position: relative;
+            overflow: hidden;
+        }
+        .socio-card::before {
+            content: '';
+            position: absolute;
+            left: 0; top: 0; bottom: 0;
+            width: 3px;
+            background: var(--primary);
+        }
+        .socio-name { font-size: 13px; font-weight: 700; color: var(--text-hi); text-transform: uppercase; }
+        .socio-qual { font-size: 11px; font-family: var(--mono); color: var(--primary); margin-top: 2px; margin-bottom: 10px; }
+        .socio-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .socio-meta-item .lbl { font-size: 9px; font-family: var(--mono); color: var(--text-lo); text-transform: uppercase; }
+        .socio-meta-item .val { font-size: 11px; font-family: var(--mono); color: var(--text-mid); margin-top: 2px; }
+        .socio-rep {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid var(--border);
+            font-size: 11px;
+            color: var(--text-mid);
+        }
+
+        /* ===== CNAE ===== */
+        .cnae-main {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            background: rgba(91,141,238,0.07);
+            border: 1px solid rgba(91,141,238,0.2);
+            border-radius: var(--radius-sm);
+            padding: 14px 16px;
+        }
+        .cnae-code {
+            font-family: var(--mono);
+            font-weight: 600;
+            font-size: 13px;
+            color: var(--primary);
+            background: rgba(91,141,238,0.12);
+            border-radius: 6px;
+            padding: 4px 10px;
+            white-space: nowrap;
+        }
+        .cnae-desc { font-size: 13px; color: var(--text-hi); line-height: 1.5; }
+        .cnae-sec-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 8px; margin-top: 12px; }
+        .cnae-sec-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            background: var(--bg-base);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 10px 12px;
+        }
+        .cnae-sec-item .code { font-family: var(--mono); font-size: 11px; color: var(--text-lo); white-space: nowrap; }
+        .cnae-sec-item .desc { font-size: 12px; color: var(--text-mid); }
+
+        /* ===== TRIBUTAÇÃO ROW ===== */
+        .tribut-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--bg-base);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 12px 16px;
+        }
+        .tribut-label { font-size: 12px; font-weight: 600; color: var(--text-mid); }
+        .tribut-dates { display: flex; gap: 20px; margin-top: 10px; }
+        .tribut-dates .item .lbl { font-size: 10px; font-family: var(--mono); color: var(--text-lo); }
+        .tribut-dates .item .val { font-size: 12px; font-family: var(--mono); color: var(--text-mid); }
+
+        /* ===== FOOTER ===== */
+        footer {
+            border-top: 1px solid var(--border);
+            background: var(--bg-card);
+            padding: 28px 24px;
+            text-align: center;
+        }
+        .footer-inner {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 14px;
+        }
+        .footer-name {
+            font-size: 13px;
+            color: var(--text-mid);
+        }
+        .footer-name a { color: var(--primary); text-decoration: none; font-weight: 600; }
+        .footer-name a:hover { color: var(--text-hi); }
+        .footer-links { display: flex; gap: 20px; }
+        .footer-links a {
+            color: var(--text-lo);
+            font-size: 18px;
+            transition: color 0.2s;
+        }
+        .footer-links a:hover { color: var(--primary); }
+        .footer-copy {
+            font-size: 11px;
+            font-family: var(--mono);
+            color: var(--text-lo);
+        }
+
+        /* ===== INSCRIÇÕES ESTADUAIS ===== */
+        .ie-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 4px;
+        }
+        .ie-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: var(--bg-base);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 10px 14px;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .ie-uf {
+            font-family: var(--mono);
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--text-lo);
+            background: var(--bg-hover);
+            border-radius: 4px;
+            padding: 2px 8px;
+            letter-spacing: 0.08em;
+            min-width: 34px;
+            text-align: center;
+        }
+        .ie-numero {
+            font-family: var(--mono);
+            font-size: 13px;
+            color: var(--text-hi);
+            font-weight: 500;
+            flex: 1;
+        }
+        .ie-status-on  { background: rgba(52,211,153,0.1); color: var(--accent); border: 1px solid rgba(52,211,153,0.25); font-size:10px; padding:2px 8px; border-radius:100px; font-family:var(--mono); font-weight:700; text-transform:uppercase; }
+        .ie-status-off { background: rgba(75,85,115,0.2);  color: var(--text-lo); border: 1px solid rgba(75,85,115,0.3);  font-size:10px; padding:2px 8px; border-radius:100px; font-family:var(--mono); font-weight:700; text-transform:uppercase; }
+        .ie-source-note {
+            font-size: 10px;
+            font-family: var(--mono);
+            color: var(--text-lo);
+            margin-top: 10px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        /* ===== RESPONSIVE ===== */
+        @media (max-width: 640px) {
+            .company-header { flex-direction: column; }
+            .cnpj-display { text-align: left; }
+            .field-grid { grid-template-columns: 1fr 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- =========== HEADER =========== -->
+<header>
+    <div class="header-inner">
+        <div class="logo">
+            <div class="logo-icon"><i class="fas fa-database" style="color:#fff"></i></div>
+            Consulta CNPJ
+        </div>
+        <span class="badge-api">BrasilAPI v1</span>
+    </div>
+</header>
+
+<!-- =========== MAIN =========== -->
+<main>
+
+    <!-- SEARCH -->
+    <div class="search-wrapper">
+        <p class="search-label"><i class="fas fa-terminal" style="margin-right:6px"></i>Número do CNPJ</p>
+        <div class="search-row">
+            <input type="text" id="cnpj-input" maxlength="18" placeholder="00.000.000/0000-00" autocomplete="off">
+            <button id="search-btn" class="btn-search">
+                <i class="fas fa-search"></i> Consultar
+            </button>
+        </div>
+    </div>
+
+    <!-- LOADING -->
+    <div id="loading" class="hidden">
+        <div class="spinner"></div>
+        <span>Extraindo metadados da Receita Federal…</span>
+    </div>
+
+    <!-- ERROR -->
+    <div id="error-container" class="hidden"></div>
+
+    <!-- RESULTS -->
+    <div id="results-container" class="hidden"></div>
+
+</main>
+
+<!-- =========== FOOTER =========== -->
+<footer>
+    <div class="footer-inner">
+        <p class="footer-name">
+            Desenvolvido por
+            <a href="https://www.linkedin.com/in/bfs-bruno" target="_blank">Bruno Ferreira Salustiano</a>
+        </p>
+        <div class="footer-links" id="footer-social"></div>
+        <p class="footer-copy">© 2024 · Dados via BrasilAPI · Receita Federal do Brasil</p>
+    </div>
+</footer>
+
+<!-- =========== JAVASCRIPT =========== -->
+<script>
+    /* ─────────────────────────────────────────
+       DATA LAYER
+    ───────────────────────────────────────── */
+    const footerLinks = [
+        { icon: "fab fa-linkedin", href: "https://www.linkedin.com/in/bfs-bruno", label: "LinkedIn", target: "_blank" },
+        { icon: "fab fa-github",   href: "#", label: "GitHub",    target: "_self" },
+        { icon: "fas fa-briefcase",href: "#", label: "Portfólio", target: "_self" }
+    ];
+
+    /* ─────────────────────────────────────────
+       FUNÇÕES UTILITÁRIAS
+    ───────────────────────────────────────── */
+    /**
+     * Formata uma string de data ISO para pt-BR.
+     * Retorna "N/A" se não houver valor.
+     */
+    function formatDate(d) {
+        if (!d) return "N/A";
+        const dt = new Date(d);
+        return isNaN(dt.getTime()) ? d : dt.toLocaleDateString('pt-BR');
+    }
+
+    /**
+     * Formata um número como moeda BRL.
+     */
+    function formatMoney(v) {
+        return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
+    }
+
+    /**
+     * Retorna o valor ou "N/A" se vazio/nulo.
+     */
+    function safe(v) {
+        return (v === null || v === undefined || v === "") ? null : v;
+    }
+
+    /**
+     * Formata CNPJ numérico para máscara visual.
+     */
+    function formatCNPJ(cnpj) {
+        return cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5");
+    }
+
+    /* ─────────────────────────────────────────
+       VALIDAÇÃO DE CNPJ (algoritmo completo)
+       — Retirado do Doc 2, que valida os
+         dois dígitos verificadores corretamente.
+    ───────────────────────────────────────── */
+    function validateCNPJ(cnpj) {
+        cnpj = cnpj.replace(/\D/g, '');
+
+        if (cnpj.length !== 14)
+            return { valid: false, message: "CNPJ deve conter exatamente 14 dígitos." };
+
+        // Rejeita sequências de dígitos iguais (ex: 11.111.111/1111-11)
+        if (/^(\d)\1+$/.test(cnpj))
+            return { valid: false, message: "CNPJ inválido: dígitos repetidos." };
+
+        // Valida 1º dígito verificador
+        let tamanho = cnpj.length - 2;
+        let numeros = cnpj.substring(0, tamanho);
+        const digitos = cnpj.substring(tamanho);
+        let soma = 0, pos = tamanho - 7;
+
+        for (let i = tamanho; i >= 1; i--) {
+            soma += numeros.charAt(tamanho - i) * pos--;
+            if (pos < 2) pos = 9;
+        }
+        let resultado = soma % 11 < 2 ? 0 : 11 - (soma % 11);
+        if (resultado != digitos.charAt(0))
+            return { valid: false, message: "CNPJ inválido: dígito verificador incorreto." };
+
+        // Valida 2º dígito verificador
+        tamanho += 1;
+        numeros = cnpj.substring(0, tamanho);
+        soma = 0; pos = tamanho - 7;
+
+        for (let i = tamanho; i >= 1; i--) {
+            soma += numeros.charAt(tamanho - i) * pos--;
+            if (pos < 2) pos = 9;
+        }
+        resultado = soma % 11 < 2 ? 0 : 11 - (soma % 11);
+        if (resultado != digitos.charAt(1))
+            return { valid: false, message: "CNPJ inválido: dígito verificador incorreto." };
+
+        return { valid: true, cnpj };
+    }
+
+    /* ─────────────────────────────────────────
+       FUNÇÕES DE RENDER
+    ───────────────────────────────────────── */
+
+    /** Renderiza links do rodapé */
+    function renderFooterLinks(items) {
+        return items.map(i =>
+            `<a href="${i.href}" target="${i.target}" aria-label="${i.label}">
+                <i class="${i.icon}"></i>
+             </a>`
+        ).join('');
+    }
+
+    /** Renderiza um campo label + valor no grid */
+    function field(label, value, full = false) {
+        const v = safe(value);
+        return `
+            <div class="field-item${full ? ' full' : ''}">
+                <div class="field-lbl">${label}</div>
+                <div class="field-val${v ? '' : ' na'}">${v || 'N/A'}</div>
+            </div>`;
+    }
+
+    /** Pill de status optante/não optante */
+    function pill(active) {
+        return active
+            ? `<span class="pill pill-on">Optante</span>`
+            : `<span class="pill pill-off">Não optante</span>`;
+    }
+
+    /**
+     * Renderiza o bloco de inscrições estaduais.
+     * Recebe o array `inscricoes_estaduais` da CNPJ.ws
+     * (pode ser null/undefined se a segunda API falhou).
+     *
+     * Conceito: cada empresa pode ter IEs em múltiplas UFs
+     * (ex: filiais em SP e RJ), por isso o dado é um array.
+     * Exibimos todas, marcando ativas e inativas.
+     */
+    function renderInscricoesEstaduais(ies, ieError) {
+        // Se houve erro na API secundária, exibe aviso
+        if (ieError) {
+            return `
+                <div class="card" style="margin-top:16px">
+                    <div class="card-title"><i class="fas fa-file-invoice"></i> Inscrições Estaduais</div>
+                    <p style="font-size:12px;color:var(--text-lo);font-style:italic;display:flex;align-items:center;gap:6px">
+                        <i class="fas fa-exclamation-circle" style="color:#f59e0b"></i>
+                        Não foi possível obter inscrições estaduais (CNPJ.ws indisponível).
+                    </p>
+                </div>`;
+        }
+
+        // Se não há nenhuma IE cadastrada
+        if (!ies || ies.length === 0) {
+            return `
+                <div class="card" style="margin-top:16px">
+                    <div class="card-title"><i class="fas fa-file-invoice"></i> Inscrições Estaduais</div>
+                    <p style="font-size:13px;color:var(--text-lo);font-style:italic">Nenhuma inscrição estadual encontrada.</p>
+                </div>`;
+        }
+
+        // Renderiza cada IE: UF | número | status ativo/inativo
+        const items = ies.map(ie => `
+            <div class="ie-item">
+                <span class="ie-uf">${ie.estado?.sigla || '?'}</span>
+                <span class="ie-numero">${ie.inscricao_estadual}</span>
+                <span class="${ie.ativo ? 'ie-status-on' : 'ie-status-off'}">${ie.ativo ? 'Ativa' : 'Inativa'}</span>
+            </div>
+        `).join('');
+
+        return `
+            <div class="card" style="margin-top:16px">
+                <div class="card-title"><i class="fas fa-file-invoice"></i> Inscrições Estaduais (${ies.length})</div>
+                <div class="ie-list">${items}</div>
+                <p class="ie-source-note"><i class="fas fa-circle-info"></i> Fonte: CNPJ.ws · Cadastro Centralizado de Contribuintes</p>
+            </div>`;
+    }
+
+    /**
+     * Função principal de renderização.
+     * Recebe o objeto `data` da BrasilAPI e devolve
+     * o HTML completo da página de resultados.
+     * O segundo parâmetro `ieData` vem da CNPJ.ws.
+     */
+    function renderResults(data, ieData = null, ieError = false) {
+        const isAtiva = data.descricao_situacao_cadastral === "ATIVA";
+        const statusClass = isAtiva ? 'status-ativa' : 'status-outra';
+        const statusColor = isAtiva ? '#34d399' : '#f87171';
+
+        return `
+        <!-- ── CABEÇALHO DA EMPRESA ── -->
+        <div class="company-header fade-up" style="--status-color:${statusColor}">
+            <div style="flex:1">
+                <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px">
+                    <h2 class="company-name">${data.razao_social}</h2>
+                    <span class="status-badge ${statusClass}">${data.descricao_situacao_cadastral || 'N/A'}</span>
+                </div>
+                <p class="company-fantasy">${data.nome_fantasia || 'Sem nome fantasia'}</p>
+            </div>
+            <div class="cnpj-display">
+                <p class="label">CNPJ</p>
+                <p class="value">${formatCNPJ(data.cnpj)}</p>
+            </div>
+        </div>
+
+        <!-- ── BARRA DE ABAS ── -->
+        <div class="tabs-bar" role="tablist">
+            <button class="tab-btn active" data-tab="identificacao" role="tab">
+                <i class="fas fa-id-card"></i> Identificação
+            </button>
+            <button class="tab-btn" data-tab="localizacao" role="tab">
+                <i class="fas fa-map-pin"></i> Localização
+            </button>
+            <button class="tab-btn" data-tab="tributacao" role="tab">
+                <i class="fas fa-coins"></i> Tributação
+            </button>
+            <button class="tab-btn" data-tab="atividades" role="tab">
+                <i class="fas fa-briefcase"></i> CNAE
+            </button>
+            <button class="tab-btn" data-tab="qsa" role="tab">
+                <i class="fas fa-users"></i> QSA
+            </button>
+            <button class="tab-btn" data-tab="contato" role="tab">
+                <i class="fas fa-phone"></i> Contato
+            </button>
+        </div>
+
+        <!-- ══════════════════════════════════════
+             ABA 1 — IDENTIFICAÇÃO E STATUS
+        ══════════════════════════════════════ -->
+        <div id="tab-identificacao" class="tab-panel active">
+            <div class="card">
+                <div class="card-title"><i class="fas fa-building"></i> Dados Cadastrais e Status</div>
+                <div class="field-grid">
+                    ${field("Matriz / Filial",           data.descricao_identificador_matriz_filial)}
+                    ${field("ID Matriz/Filial",          data.identificador_matriz_filial)}
+                    ${field("Data Início Atividade",     formatDate(data.data_inicio_atividade))}
+                    ${field("Situação Cadastral",        data.descricao_situacao_cadastral)}
+                    ${field("Data Situação Cadastral",   formatDate(data.data_situacao_cadastral))}
+                    ${field("Motivo Situação",           data.descricao_motivo_situacao_cadastral)}
+                    ${field("Código Motivo",             data.motivo_situacao_cadastral)}
+                    ${field("Situação Especial",         data.situacao_especial)}
+                    ${field("Data Situação Especial",    formatDate(data.data_situacao_especial))}
+                </div>
+            </div>
+            <div class="card" style="margin-top:16px">
+                <div class="card-title"><i class="fas fa-gavel"></i> Natureza Jurídica e Porte</div>
+                <div class="field-grid cols-2">
+                    ${field("Natureza Jurídica",         data.natureza_juridica, true)}
+                    ${field("Código Natureza",           data.codigo_natureza_juridica)}
+                    ${field("Porte da Empresa",          data.porte)}
+                    ${field("Código Porte",              data.codigo_porte)}
+                    ${field("Capital Social",            formatMoney(data.capital_social))}
+                    ${field("Qualificação do Responsável", data.qualificacao_do_responsavel)}
+                    ${field("Ente Federativo Responsável", data.ente_federativo_responsavel)}
+                </div>
+            </div>
+            ${renderInscricoesEstaduais(ieData, ieError)}
+        </div>
+
+        <!-- ══════════════════════════════════════
+             ABA 2 — LOCALIZAÇÃO
+        ══════════════════════════════════════ -->
+        <div id="tab-localizacao" class="tab-panel">
+            <div class="card">
+                <div class="card-title"><i class="fas fa-map-marked-alt"></i> Endereço Completo</div>
+                <div class="field-grid">
+                    ${field("Tipo Logradouro",           data.descricao_tipo_de_logradouro)}
+                    ${field("Logradouro",                data.logradouro, true)}
+                    ${field("Número",                    data.numero)}
+                    ${field("Complemento",               data.complemento)}
+                    ${field("Bairro",                    data.bairro)}
+                    ${field("CEP",                       data.cep)}
+                    ${field("Município",                 data.municipio)}
+                    ${field("UF",                        data.uf)}
+                    ${field("Cód. Município",            data.codigo_municipio)}
+                    ${field("Cód. IBGE",                 data.codigo_municipio_ibge)}
+                    ${field("País",                      data.pais || "BRASIL")}
+                    ${field("Cód. País",                 data.codigo_pais)}
+                    ${field("Cidade no Exterior",        data.nome_cidade_no_exterior)}
+                </div>
+            </div>
+        </div>
+
+        <!-- ══════════════════════════════════════
+             ABA 3 — TRIBUTAÇÃO
+        ══════════════════════════════════════ -->
+        <div id="tab-tributacao" class="tab-panel">
+            <div class="card">
+                <div class="card-title"><i class="fas fa-receipt"></i> Opções Tributárias</div>
+                <div style="display:flex;flex-direction:column;gap:16px">
+
+                    <!-- Simples Nacional -->
+                    <div>
+                        <div class="tribut-row">
+                            <span class="tribut-label">Simples Nacional</span>
+                            ${pill(data.opcao_pelo_simples)}
+                        </div>
+                        <div class="tribut-dates">
+                            <div class="item">
+                                <div class="lbl">Data de opção</div>
+                                <div class="val">${formatDate(data.data_opcao_pelo_simples)}</div>
+                            </div>
+                            <div class="item">
+                                <div class="lbl">Data de exclusão</div>
+                                <div class="val">${formatDate(data.data_exclusao_do_simples)}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- MEI -->
+                    <div>
+                        <div class="tribut-row">
+                            <span class="tribut-label">MEI</span>
+                            ${pill(data.opcao_pelo_mei)}
+                        </div>
+                        <div class="tribut-dates">
+                            <div class="item">
+                                <div class="lbl">Data de opção</div>
+                                <div class="val">${formatDate(data.data_opcao_pelo_mei)}</div>
+                            </div>
+                            <div class="item">
+                                <div class="lbl">Data de exclusão</div>
+                                <div class="val">${formatDate(data.data_exclusao_do_mei)}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <!-- ══════════════════════════════════════
+             ABA 4 — CNAE (ATIVIDADES)
+        ══════════════════════════════════════ -->
+        <div id="tab-atividades" class="tab-panel">
+            <div class="card">
+                <div class="card-title"><i class="fas fa-briefcase"></i> Atividade Principal</div>
+                <div class="cnae-main">
+                    <span class="cnae-code">${data.cnae_fiscal}</span>
+                    <span class="cnae-desc">${data.cnae_fiscal_descricao}</span>
+                </div>
+
+                ${data.cnaes_secundarios && data.cnaes_secundarios.length > 0 ? `
+                <div style="margin-top:20px">
+                    <div class="card-title" style="margin-bottom:12px"><i class="fas fa-layer-group"></i> Atividades Secundárias (${data.cnaes_secundarios.length})</div>
+                    <div class="cnae-sec-grid">
+                        ${data.cnaes_secundarios.map(c => `
+                            <div class="cnae-sec-item">
+                                <span class="code">${c.codigo}</span>
+                                <span class="desc">${c.descricao}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+                ` : ''}
+            </div>
+        </div>
+
+        <!-- ══════════════════════════════════════
+             ABA 5 — QSA
+        ══════════════════════════════════════ -->
+        <div id="tab-qsa" class="tab-panel">
+            <div class="card">
+                <div class="card-title"><i class="fas fa-users"></i> Quadro de Sócios e Administradores</div>
+                ${data.qsa && data.qsa.length > 0
+                    ? `<div style="display:flex;flex-direction:column;gap:12px">
+                        ${data.qsa.map(s => `
+                            <div class="socio-card">
+                                <div class="socio-name">${s.nome_socio}</div>
+                                <div class="socio-qual">${s.qualificacao_socio}</div>
+                                <div class="socio-meta">
+                                    <div class="socio-meta-item">
+                                        <div class="lbl">Entrada</div>
+                                        <div class="val">${formatDate(s.data_entrada_sociedade)}</div>
+                                    </div>
+                                    <div class="socio-meta-item">
+                                        <div class="lbl">Faixa Etária</div>
+                                        <div class="val">${safe(s.faixa_etaria) || 'N/A'}</div>
+                                    </div>
+                                    <div class="socio-meta-item">
+                                        <div class="lbl">CPF/CNPJ</div>
+                                        <div class="val mono">${safe(s.cnpj_cpf_do_socio) || 'N/A'}</div>
+                                    </div>
+                                    <div class="socio-meta-item">
+                                        <div class="lbl">País de Origem</div>
+                                        <div class="val">${safe(s.pais) || 'BRASIL'}</div>
+                                    </div>
+                                </div>
+                                ${s.nome_representante_legal ? `
+                                    <div class="socio-rep">
+                                        <strong>Representante Legal:</strong> ${s.nome_representante_legal}
+                                        ${s.qualificacao_representante_legal ? `<span style="color:var(--text-lo)"> — ${s.qualificacao_representante_legal}</span>` : ''}
+                                    </div>
+                                ` : ''}
+                            </div>
+                        `).join('')}
+                       </div>`
+                    : `<p style="font-size:13px;color:var(--text-lo);font-style:italic">Informação não disponível.</p>`
+                }
+            </div>
+        </div>
+
+        <!-- ══════════════════════════════════════
+             ABA 6 — CONTATO
+        ══════════════════════════════════════ -->
+        <div id="tab-contato" class="tab-panel">
+            <div class="card">
+                <div class="card-title"><i class="fas fa-phone-alt"></i> Canais de Contato</div>
+                <div class="field-grid cols-2">
+                    ${field("Telefone Principal",   data.ddd_telefone_1)}
+                    ${field("Telefone Secundário",  data.ddd_telefone_2)}
+                    ${field("Fax",                  data.ddd_fax)}
+                    ${field("E-mail",               data.email)}
+                </div>
+            </div>
+        </div>
+        `;
+    }
+
+    /* ─────────────────────────────────────────
+       LÓGICA PRINCIPAL
+    ───────────────────────────────────────── */
+    const cnpjInput       = document.getElementById('cnpj-input');
+    const searchBtn       = document.getElementById('search-btn');
+    const loadingEl       = document.getElementById('loading');
+    const errorContainer  = document.getElementById('error-container');
+    const resultsContainer= document.getElementById('results-container');
+
+    // Renderiza links do footer
+    document.getElementById('footer-social').innerHTML = renderFooterLinks(footerLinks);
+
+    // Máscara do input de CNPJ
+    cnpjInput.addEventListener('input', e => {
+        let v = e.target.value.replace(/\D/g, '');
+        if (v.length > 14) v = v.substring(0, 14);
+        if (v.length > 12)      v = v.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2}).*/, '$1.$2.$3/$4-$5');
+        else if (v.length > 8)  v = v.replace(/^(\d{2})(\d{3})(\d{3})(\d{0,4}).*/,      '$1.$2.$3/$4');
+        else if (v.length > 5)  v = v.replace(/^(\d{2})(\d{3})(\d{0,3}).*/,              '$1.$2.$3');
+        else if (v.length > 2)  v = v.replace(/^(\d{2})(\d{0,3}).*/,                     '$1.$2');
+        e.target.value = v;
+    });
+
+    // Gerenciamento de abas
+    document.addEventListener('click', e => {
+        const btn = e.target.closest('.tab-btn');
+        if (!btn) return;
+        const tabId = btn.dataset.tab;
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById(`tab-${tabId}`).classList.add('active');
+    });
+
+    // Busca principal — chamada paralela com Promise.allSettled
+    //
+    // Por que allSettled em vez de Promise.all?
+    // Promise.all cancela tudo se UMA falha.
+    // allSettled deixa ambas terminarem e reporta o status
+    // de cada uma individualmente — se a CNPJ.ws falhar,
+    // os dados da BrasilAPI ainda são exibidos normalmente.
+    async function handleSearch() {
+        const raw = cnpjInput.value.replace(/\D/g, '');
+        const validation = validateCNPJ(raw);
+
+        errorContainer.classList.add('hidden');
+        resultsContainer.classList.add('hidden');
+        errorContainer.innerHTML = '';
+
+        if (!validation.valid) {
+            errorContainer.innerHTML = `
+                <div class="error-box">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <div><strong>CNPJ Inválido</strong><br>${validation.message}</div>
+                </div>`;
+            errorContainer.classList.remove('hidden');
+            return;
+        }
+
+        loadingEl.classList.remove('hidden');
+
+        try {
+            // Dispara as duas requisições em paralelo — nenhuma espera a outra
+            const [brasilResult, cnpjwsResult] = await Promise.allSettled([
+                fetch(`https://brasilapi.com.br/api/cnpj/v1/${validation.cnpj}`),
+                fetch(`https://publica.cnpj.ws/cnpj/${validation.cnpj}`)
+            ]);
+
+            // ── BrasilAPI: obrigatória — lança erro se falhar ──
+            if (brasilResult.status === 'rejected') throw new Error("Falha ao conectar com a BrasilAPI.");
+            const brasilRes = brasilResult.value;
+            if (!brasilRes.ok) {
+                if (brasilRes.status === 404) throw new Error("CNPJ não encontrado na base da Receita Federal.");
+                if (brasilRes.status === 429) throw new Error("Muitas consultas em seguida. Aguarde um momento.");
+                throw new Error(`Erro ${brasilRes.status} ao comunicar com a API.`);
+            }
+            const data = await brasilRes.json();
+
+            // ── CNPJ.ws: opcional — degrada graciosamente se falhar ──
+            let ieData  = null;   // array de inscricoes_estaduais
+            let ieError = false;  // flag de falha da IE
+
+            if (cnpjwsResult.status === 'fulfilled' && cnpjwsResult.value.ok) {
+                try {
+                    const wsJson = await cnpjwsResult.value.json();
+                    // O campo fica em estabelecimento.inscricoes_estaduais
+                    ieData = wsJson?.estabelecimento?.inscricoes_estaduais ?? [];
+                } catch (_) { ieError = true; }
+            } else {
+                ieError = true;
+            }
+
+            resultsContainer.innerHTML = renderResults(data, ieData, ieError);
+            resultsContainer.classList.remove('hidden');
+
+        } catch (err) {
+            errorContainer.innerHTML = `
+                <div class="error-box">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <div><strong>Erro na Consulta</strong><br>${err.message}</div>
+                </div>`;
+            errorContainer.classList.remove('hidden');
+        } finally {
+            loadingEl.classList.add('hidden');
+        }
+    }
+
+    searchBtn.addEventListener('click', handleSearch);
+    cnpjInput.addEventListener('keypress', e => { if (e.key === 'Enter') handleSearch(); });
+</script>
+</body>
+</html>
