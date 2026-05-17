@@ -84,7 +84,7 @@ async function fetchWithRetry(url, options = {}, maxRetries = 3) {
 function validateCNPJ(cnpj) {
     cnpj = cnpj.replace(/\D/g, '');
     if (cnpj.length !== 14) return { valid: false, msg: "CNPJ deve ter 14 dígitos." };
-    if (/^(\d)+$/.test(cnpj)) return { valid: false, msg: "CNPJ inválido: dígitos repetidos." };
+    if (/^(\d)\1+$/.test(cnpj)) return { valid: false, msg: "CNPJ inválido: dígitos repetidos." };
     let t = cnpj.length - 2, n = cnpj.substring(0, t), d = cnpj.substring(t);
     let s = 0, p = t - 7;
     for (let i = t; i >= 1; i--) { s += n.charAt(t - i) * p--; if (p < 2) p = 9; }
@@ -168,7 +168,7 @@ function render(data, ieData = null, ieError = false, ieDebugInfo = '') {
             </div>
         </div>
 
-        <div class="section">
+        <div class="section" data-section="identificacao">
             <div class="section-title"><i class="fas fa-id-card"></i> Identificação</div>
             <div class="grid">
                 ${field('Matriz/Filial', data.descricao_identificador_matriz_filial)}
@@ -184,7 +184,7 @@ function render(data, ieData = null, ieError = false, ieDebugInfo = '') {
             </div>
         </div>
 
-        <div class="section">
+        <div class="section" data-section="endereco"> 
             <div class="section-title"><i class="fas fa-map-marker-alt"></i> Endereço</div>
             <div class="grid grid-2">
                 ${field('Logradouro', `${data.descricao_tipo_de_logradouro || ''} ${data.logradouro || ''}`.trim(), true)}
@@ -197,7 +197,7 @@ function render(data, ieData = null, ieError = false, ieDebugInfo = '') {
             </div>
         </div>
 
-        <div class="section">
+        <div class="section" data-section="tributacao">
             <div class="section-title"><i class="fas fa-coins"></i> Tributação</div>
             <div class="tributo">
                 <span class="tributo-label">Simples Nacional</span>
@@ -217,7 +217,7 @@ function render(data, ieData = null, ieError = false, ieDebugInfo = '') {
             </div>
         </div>
 
-        <div class="section">
+        <div class="section" data-section="atividades">
             <div class="section-title"><i class="fas fa-briefcase"></i> Atividades</div>
             <div class="cnae-main">
                 <span class="cnae-code">${data.cnae_fiscal}</span>
@@ -234,7 +234,7 @@ function render(data, ieData = null, ieError = false, ieDebugInfo = '') {
 
         ${renderInscricoesEstaduais(ieData, ieError, ieDebugInfo)}
 
-        <div class="section">
+        <div class="section" data-section="qsa">
             <div class="section-title"><i class="fas fa-users"></i> Quadro Societário (${data.qsa?.length || 0})</div>
             ${data.qsa?.length ? data.qsa.map(s => `
             <div class="socio">
@@ -250,7 +250,7 @@ function render(data, ieData = null, ieError = false, ieDebugInfo = '') {
             </div>`).join('') : '<p style="color:var(--text-muted);font-size:13px;font-style:italic">Informação não disponível.</p>'}
         </div>
 
-        <div class="section">
+        <div class="section" data-section="contato">
             <div class="section-title"><i class="fas fa-phone"></i> Contato</div>
             <div class="grid">
                 ${field('Telefone 1', data.ddd_telefone_1)}
@@ -403,7 +403,16 @@ function downloadPDF() {
     const cnpjNum = $('cnpj-input').value.replace(/\D/g, '');
 
     const iframe = document.createElement('iframe');
-    iframe.style.cssText = 'position:fixed;top:0;left:0;width:0;height:0;border:none;visibility:hidden;';
+    iframe.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 0;
+        height: 0;
+        border: none;
+        visibility: hidden;
+    `;
+
     document.body.appendChild(iframe);
 
     const doc = iframe.contentDocument || iframe.contentWindow.document;
@@ -416,444 +425,257 @@ function downloadPDF() {
 <head>
 <meta charset="UTF-8">
 <title>CNPJ ${cnpjNum}</title>
+
 <style>
-@page { size: A4; margin: 15mm; }
-* { box-sizing: border-box; margin: 0; padding: 0; }
+@page {
+    size: A4;
+    margin: 12mm;
+}
+
 body {
-    font-family: 'Segoe UI', Arial, sans-serif;
-    font-size: 11pt;
-    line-height: 1.5;
-    color: #1a1a1a;
-    background: #fff;
-    padding: 0;
+    font-family: Arial, sans-serif;
+    font-size: 11px;
+    color: #111;
 }
-.header {
-    border-bottom: 2px solid #2563eb;
-    padding-bottom: 12px;
-    margin-bottom: 16px;
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
+
+* {
+    box-sizing: border-box;
 }
-.header-left { flex: 1; }
-.header h1 {
-    font-size: 16pt;
-    font-weight: 700;
-    color: #111827;
-    margin-bottom: 4px;
-    word-break: break-word;
-}
-.header .fantasia {
-    font-size: 10pt;
-    color: #4b5563;
-    margin-bottom: 6px;
-}
-.header .status {
-    display: inline-block;
-    font-size: 9pt;
-    font-weight: 700;
-    padding: 2px 8px;
-    border-radius: 4px;
-    text-transform: uppercase;
-}
-.header .status.ativa { background: #d1fae5; color: #065f46; }
-.header .status.inativa { background: #fee2e2; color: #991b1b; }
-.header-right { text-align: right; }
-.header-right .lbl {
-    font-size: 8pt;
-    color: #6b7280;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-}
-.header-right .val {
-    font-family: 'Courier New', monospace;
-    font-size: 14pt;
-    font-weight: 700;
-    color: #2563eb;
-}
+
+/* EVITA CORTES */
 .section {
-    margin-bottom: 14px;
     page-break-inside: avoid;
+    break-inside: avoid;
+    margin-bottom: 12px;
 }
-.section-title {
-    font-size: 9pt;
-    font-weight: 700;
-    color: #374151;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    border-bottom: 1px solid #e5e7eb;
-    padding-bottom: 4px;
-    margin-bottom: 8px;
+
+.field, .ie-item, .socio {
+    page-break-inside: avoid;
+    break-inside: avoid;
 }
+
+/* GRID SIMPLES (mais seguro que CSS grid no print) */
 .grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 8px 16px;
+    display: table;
+    width: 100%;
 }
-.grid-3 { grid-template-columns: repeat(3, 1fr); }
-.field { page-break-inside: avoid; }
-.field.full { grid-column: 1 / -1; }
-.field label {
-    display: block;
-    font-size: 7pt;
-    font-weight: 600;
-    color: #6b7280;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-    margin-bottom: 1px;
+
+.grid .field {
+    display: table-row;
 }
-.field .value {
-    font-size: 10pt;
-    color: #1a1a1a;
-    font-weight: 500;
-    word-break: break-word;
+
+.grid .field label,
+.grid .field .value {
+    display: table-cell;
+    padding: 2px 6px;
+    border-bottom: 1px solid #eee;
 }
-.field .value.na { color: #9ca3af; font-style: italic; }
-.ie-list {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
+
+/* CABEÇALHO */
+.header {
+    border-bottom: 2px solid #000;
+    margin-bottom: 10px;
+    padding-bottom: 6px;
 }
-.ie-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    background: #f9fafb;
-    border: 1px solid #e5e7eb;
-    border-radius: 4px;
-    padding: 8px 12px;
-    gap: 12px;
+
+/* STATUS */
+.status-ativa {
+    color: green;
+    font-weight: bold;
 }
-.ie-uf {
-    font-family: 'Courier New', monospace;
-    font-size: 9pt;
-    font-weight: 700;
-    color: #6b7280;
-    background: #f3f4f6;
-    border-radius: 3px;
-    padding: 2px 8px;
-    letter-spacing: 0.05em;
-    min-width: 34px;
-    text-align: center;
+
+.status-outra {
+    color: red;
+    font-weight: bold;
 }
-.ie-numero {
-    font-family: 'Courier New', monospace;
-    font-size: 10pt;
-    color: #1a1a1a;
-    font-weight: 500;
-    flex: 1;
+
+/* EVITA QUEBRA BRUTA */
+h1, h2, h3 {
+    page-break-after: avoid;
 }
-.ie-status-on { background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; font-size:8pt; padding:2px 8px; border-radius:100px; font-weight:700; text-transform:uppercase; }
-.ie-status-off { background: #f3f4f6; color: #6b7280; border: 1px solid #d1d5db; font-size:8pt; padding:2px 8px; border-radius:100px; font-weight:700; text-transform:uppercase; }
-.ie-source-note {
-    font-size: 8pt;
-    color: #9ca3af;
-    margin-top: 8px;
-    font-style: italic;
+
+/* REMOVE COISAS QUE QUEBRAM PRINT */
+.actions, button {
+    display: none !important;
 }
-.cnae-box {
-    background: #f8fafc;
-    border: 1px solid #e5e7eb;
-    border-radius: 4px;
-    padding: 8px 12px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 8px;
-}
-.cnae-box .code {
-    font-family: 'Courier New', monospace;
-    font-weight: 700;
-    font-size: 10pt;
-    color: #2563eb;
-    background: #eff6ff;
-    padding: 2px 8px;
-    border-radius: 3px;
-    white-space: nowrap;
-}
-.cnae-box .desc { font-size: 10pt; color: #1a1a1a; }
-.cnae-list {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 6px;
-}
-.cnae-item {
-    background: #f9fafb;
-    border: 1px solid #e5e7eb;
-    border-radius: 3px;
-    padding: 6px 10px;
-    font-size: 9pt;
-    display: flex;
-    gap: 8px;
-}
-.cnae-item .code { font-family: 'Courier New', monospace; color: #6b7280; white-space: nowrap; }
-.cnae-item .desc { color: #374151; }
-.socio {
-    background: #f9fafb;
-    border: 1px solid #e5e7eb;
-    border-radius: 4px;
-    padding: 10px 12px;
-    margin-bottom: 8px;
-    page-break-inside: avoid;
-}
-.socio-name {
-    font-size: 10pt;
-    font-weight: 700;
-    color: #111827;
-    text-transform: uppercase;
-}
-.socio-qual {
-    font-size: 8pt;
-    color: #2563eb;
-    margin-bottom: 6px;
-}
-.socio-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 4px 12px;
-}
-.socio-grid .sfield label {
-    font-size: 7pt;
-    color: #6b7280;
-    text-transform: uppercase;
-}
-.socio-grid .sfield .value {
-    font-size: 9pt;
-    color: #374151;
-    font-family: 'Courier New', monospace;
-}
-.socio-rep {
-    margin-top: 6px;
-    padding-top: 6px;
-    border-top: 1px solid #e5e7eb;
-    font-size: 9pt;
-    color: #4b5563;
-}
-.tributo-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    background: #f9fafb;
-    border: 1px solid #e5e7eb;
-    border-radius: 4px;
-    padding: 8px 12px;
-    margin-bottom: 6px;
-}
-.tributo-label { font-size: 10pt; font-weight: 600; color: #374151; }
-.pill {
-    display: inline-block;
-    font-size: 8pt;
-    font-weight: 700;
-    padding: 2px 8px;
-    border-radius: 100px;
-    text-transform: uppercase;
-}
-.pill-on { background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
-.pill-off { background: #f3f4f6; color: #4b5563; border: 1px solid #d1d5db; }
-.tributo-dates {
-    display: flex;
-    gap: 20px;
-    margin: 0 12px 10px;
-}
-.tributo-dates .dfield label {
-    font-size: 7pt;
-    color: #6b7280;
-    text-transform: uppercase;
-}
-.tributo-dates .dfield .value {
-    font-size: 9pt;
-    color: #374151;
-    font-family: 'Courier New', monospace;
-}
-.footer-pdf {
-    margin-top: 20px;
-    padding-top: 10px;
-    border-top: 1px solid #e5e7eb;
-    font-size: 7pt;
-    color: #9ca3af;
-    text-align: center;
-}
-@media print {
-    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-}
+
 </style>
+
 </head>
 <body>
-    ${buildPDFBody(original)}
-    <div class="footer-pdf">
-        Documento gerado em ${new Date().toLocaleString('pt-BR')} · Consulta CNPJ · Dados via BrasilAPI
-    </div>
+
+${original.outerHTML}
+
 </body>
-</html>`);
+</html>
+    `);
+
     doc.close();
 
     setTimeout(() => {
         win.focus();
         win.print();
+
         setTimeout(() => {
-            if (iframe.parentNode) document.body.removeChild(iframe);
-        }, 1000);
-    }, 500);
+            iframe.remove();
+        }, 800);
+    }, 300);
 }
+function buildReceitaStylePDF(original, cnpjNum) {
+    const get = (sel) => original.querySelector(sel)?.textContent || 'N/A';
 
-function buildPDFBody(original) {
-    const h2 = original.querySelector('h2')?.textContent || '';
-    const fantasia = original.querySelector('.fantasia')?.textContent || '';
-    const cnpjVal = original.querySelector('.cnpj-box .val')?.textContent || '';
-    const statusEl = original.querySelector('.status-badge');
-    const statusText = statusEl?.textContent || 'N/A';
-    const statusClass = statusEl?.classList.contains('status-ativa') ? 'ativa' : 'inativa';
+    const razao = get('h2');
+    const fantasia = get('.fantasia');
+    const status = get('.status-badge');
+    const cnpj = get('.cnpj-box .val');
 
-    const extractFields = (sectionIndex) => {
-        const section = original.querySelectorAll('.section')[sectionIndex];
-        if (!section) return '';
-        const fields = section.querySelectorAll('.field');
-        return Array.from(fields).map(f => {
-            const lbl = f.querySelector('label')?.textContent || '';
-            const val = f.querySelector('.value')?.textContent || 'N/A';
-            const isNA = f.querySelector('.value.na') !== null;
-            return `<div class="field${f.classList.contains('full') ? ' full' : ''}"><label>${escapeHtml(lbl)}</label><div class="value${isNA ? ' na' : ''}">${escapeHtml(val)}</div></div>`;
-        }).join('');
-    };
-
-    const cnaeMain = original.querySelector('.cnae-main');
-    let cnaeHTML = '';
-    if (cnaeMain) {
-        const code = cnaeMain.querySelector('.cnae-code')?.textContent || '';
-        const desc = cnaeMain.querySelector('.cnae-desc')?.textContent || '';
-        cnaeHTML += `<div class="cnae-box"><span class="code">${escapeHtml(code)}</span><span class="desc">${escapeHtml(desc)}</span></div>`;
-    }
-    const cnaeSec = original.querySelectorAll('.cnae-item');
-    if (cnaeSec.length) {
-        cnaeHTML += `<div class="cnae-list">${Array.from(cnaeSec).map(c => {
-            const code = c.querySelector('.code')?.textContent || '';
-            const desc = c.querySelector('.desc')?.textContent || '';
-            return `<div class="cnae-item"><span class="code">${escapeHtml(code)}</span><span class="desc">${escapeHtml(desc)}</span></div>`;
-        }).join('')}</div>`;
-    }
-
-    const socios = original.querySelectorAll('.socio');
-    let qsaHTML = '';
-    if (socios.length) {
-        qsaHTML = Array.from(socios).map(s => {
-            const name = s.querySelector('.socio-name')?.textContent || '';
-            const qual = s.querySelector('.socio-qual')?.textContent || '';
-            const sfields = s.querySelectorAll('.sfield');
-            const entrada = sfields[0]?.querySelector('.value')?.textContent || 'N/A';
-            const faixa = sfields[1]?.querySelector('.value')?.textContent || 'N/A';
-            const cpf = sfields[2]?.querySelector('.value')?.textContent || 'N/A';
-            const pais = sfields[3]?.querySelector('.value')?.textContent || 'BRASIL';
-            const rep = s.querySelector('.socio-rep')?.textContent || '';
-            return `<div class="socio">
-                <div class="socio-name">${escapeHtml(name)}</div>
-                <div class="socio-qual">${escapeHtml(qual)}</div>
-                <div class="socio-grid">
-                    <div class="sfield"><label>Entrada</label><div class="value">${escapeHtml(entrada)}</div></div>
-                    <div class="sfield"><label>Faixa Etária</label><div class="value">${escapeHtml(faixa)}</div></div>
-                    <div class="sfield"><label>CPF/CNPJ</label><div class="value">${escapeHtml(cpf)}</div></div>
-                    <div class="sfield"><label>País</label><div class="value">${escapeHtml(pais)}</div></div>
-                </div>
-                ${rep ? `<div class="socio-rep">${escapeHtml(rep)}</div>` : ''}
-            </div>`;
-        }).join('');
-    } else {
-        qsaHTML = '<p style="color:#9ca3af;font-size:10pt;font-style:italic">Informação não disponível.</p>';
-    }
-
-    const tributos = original.querySelectorAll('.tributo');
-    let tribHTML = '';
-    tributos.forEach((t) => {
-        const label = t.querySelector('.tributo-label')?.textContent || '';
-        const isOn = t.querySelector('.pill-on') !== null;
-        const dates = t.nextElementSibling;
-        let datesHTML = '';
-        if (dates && dates.classList.contains('tributo-dates')) {
-            const dfields = dates.querySelectorAll('.dfield');
-            datesHTML = `<div class="tributo-dates">${Array.from(dfields).map(d => {
-                const dl = d.querySelector('label')?.textContent || '';
-                const dv = d.querySelector('.value')?.textContent || 'N/A';
-                return `<div class="dfield"><label>${escapeHtml(dl)}</label><div class="value">${escapeHtml(dv)}</div></div>`;
-            }).join('')}</div>`;
-        }
-        tribHTML += `<div class="tributo-row"><span class="tributo-label">${escapeHtml(label)}</span>${isOn ? '<span class="pill pill-on">Sim</span>' : '<span class="pill pill-off">Não</span>'}</div>${datesHTML}`;
-    });
-
-    // Inscrições estaduais do DOM
-    const ieSection = original.querySelector('.ie-list');
-    let ieHTML = '';
-    if (ieSection) {
-        const ieItems = ieSection.querySelectorAll('.ie-item');
-        ieHTML = `<div class="section">
-            <div class="section-title">Inscrições Estaduais (${ieItems.length})</div>
-            <div class="ie-list">${Array.from(ieItems).map(item => {
-                const uf = item.querySelector('.ie-uf')?.textContent || '?';
-                const num = item.querySelector('.ie-numero')?.textContent || 'N/A';
-                const status = item.querySelector('.ie-status-on, .ie-status-off')?.textContent || 'N/A';
-                const isActive = item.querySelector('.ie-status-on') !== null;
-                return `<div class="ie-item">
-                    <span class="ie-uf">${escapeHtml(uf)}</span>
-                    <span class="ie-numero">${escapeHtml(num)}</span>
-                    <span class="${isActive ? 'ie-status-on' : 'ie-status-off'}">${escapeHtml(status)}</span>
-                </div>`;
-            }).join('')}</div>
-        </div>`;
-    } else {
-        const ieErrorBox = original.querySelector('.error-box');
-        if (ieErrorBox) {
-            ieHTML = `<div class="section"><div class="section-title">Inscrições Estaduais</div><p style="color:#9ca3af;font-size:10pt;font-style:italic">${escapeHtml(ieErrorBox.textContent || 'Indisponível')}</p></div>`;
-        }
-    }
+    const field = (label, value) => `
+        <tr>
+            <td class="label">${label}</td>
+            <td class="value">${value}</td>
+        </tr>
+    `;
 
     return `
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+
+<style>
+@page {
+    size: A4;
+    margin: 15mm;
+}
+
+body {
+    font-family: Arial, sans-serif;
+    font-size: 11px;
+    color: #111;
+}
+
+/* HEADER */
+.header {
+    border-bottom: 2px solid #1f4e79;
+    padding-bottom: 10px;
+    margin-bottom: 12px;
+}
+
+.header h1 {
+    font-size: 15px;
+    margin: 0;
+}
+
+.header .sub {
+    font-size: 12px;
+    margin-top: 3px;
+    color: #444;
+}
+
+.header .meta {
+    margin-top: 8px;
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+}
+
+/* SEÇÕES */
+.section {
+    margin-bottom: 10px;
+    page-break-inside: avoid;
+}
+
+.section-title {
+    font-size: 12px;
+    font-weight: bold;
+    background: #f2f2f2;
+    padding: 5px;
+    border-left: 4px solid #1f4e79;
+    margin-bottom: 5px;
+}
+
+/* TABELA LIMPA */
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+td {
+    border: 1px solid #ddd;
+    padding: 5px;
+    font-size: 11px;
+}
+
+.label {
+    width: 40%;
+    background: #fafafa;
+    font-weight: bold;
+}
+
+.footer {
+    position: fixed;
+    bottom: 0;
+    font-size: 9px;
+    text-align: center;
+    width: 100%;
+    color: #666;
+}
+</style>
+
+</head>
+
+<body>
+
 <div class="header">
-    <div class="header-left">
-        <h1>${escapeHtml(h2)}</h1>
-        <div class="fantasia">${escapeHtml(fantasia)}</div>
-        <span class="status ${statusClass}">${escapeHtml(statusText)}</span>
-    </div>
-    <div class="header-right">
-        <div class="lbl">CNPJ</div>
-        <div class="val">${escapeHtml(cnpjVal)}</div>
+    <h1>${razao}</h1>
+    <div class="sub">${fantasia}</div>
+
+    <div class="meta">
+        <div><b>CNPJ:</b> ${cnpj}</div>
+        <div><b>Status:</b> ${status}</div>
     </div>
 </div>
 
 <div class="section">
-    <div class="section-title">Identificação</div>
-    <div class="grid grid-3">
-        ${extractFields(0)}
-    </div>
+    <div class="section-title">IDENTIFICAÇÃO</div>
+    <table>
+        ${field('Matriz/Filial', get('[data-section="identificacao"] .field:nth-child(1) .value'))}
+        ${field('Natureza Jurídica', get('[data-section="identificacao"] .field:nth-child(2) .value'))}
+        ${field('Porte', get('[data-section="identificacao"] .field:nth-child(3) .value'))}
+        ${field('Capital Social', get('[data-section="identificacao"] .field:nth-child(4) .value'))}
+        ${field('Data Início', get('[data-section="identificacao"] .field:nth-child(5) .value'))}
+        ${field('Situação', get('[data-section="identificacao"] .field:nth-child(6) .value'))}
+    </table>
 </div>
 
 <div class="section">
-    <div class="section-title">Endereço</div>
-    <div class="grid">
-        ${extractFields(1)}
-    </div>
+    <div class="section-title">ENDEREÇO</div>
+    <table>
+        ${field('Logradouro', get('[data-section="endereco"] .field:nth-child(1) .value'))}
+        ${field('Número', get('[data-section="endereco"] .field:nth-child(2) .value'))}
+        ${field('Complemento', get('[data-section="endereco"] .field:nth-child(3) .value'))}
+        ${field('Bairro', get('[data-section="endereco"] .field:nth-child(4) .value'))}
+        ${field('CEP', get('[data-section="endereco"] .field:nth-child(5) .value'))}
+        ${field('Município/UF', get('[data-section="endereco"] .field:nth-child(6) .value'))}
+    </table>
 </div>
 
 <div class="section">
-    <div class="section-title">Tributação</div>
-    ${tribHTML}
+    <div class="section-title">CONTATO</div>
+    <table>
+        ${field('Telefone 1', get('[data-section="contato"] .field:nth-child(1) .value'))}
+        ${field('Telefone 2', get('[data-section="contato"] .field:nth-child(2) .value'))}
+        ${field('E-mail', get('[data-section="contato"] .field:nth-child(4) .value'))}
+    </table>
 </div>
 
-<div class="section">
-    <div class="section-title">Atividades</div>
-    ${cnaeHTML}
+<div class="footer">
+    Documento gerado automaticamente · Consulta CNPJ
 </div>
 
-${ieHTML}
-
-<div class="section">
-    <div class="section-title">Quadro Societário</div>
-    ${qsaHTML}
-</div>
-
-<div class="section">
-    <div class="section-title">Contato</div>
-    <div class="grid grid-3">
-        ${extractFields(5)}
-    </div>
-</div>`;
+</body>
+</html>
+`;
 }
 
 function escapeHtml(text) {
